@@ -168,8 +168,8 @@ class SupabaseTable {
 }
 
 // Initialize Supabase
-$supabase_url = 'https://hlnhavgeibngpwchjzzv.supabase.co';
-$supabase_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhsbmhhdmdlaWJuZ3B3Y2hqenp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjg0NzksImV4cCI6MjA3OTgwNDQ3OX0.TwXeEg_gLuEKvpQneoJqcrmFqCQhdbnkqy5mXv0S4EI';
+$supabase_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co';
+$supabase_key = 'OiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1MTM2NDQsImV4cCI6MjA4MDA4OTY0NH0.sJwlxABSSBpkTApz7_3TGG4uhZAqak4RkcwAPHq3kyw';
 $supabase = new SupabaseClient($supabase_url, $supabase_key);
 
 // Set session token if exists

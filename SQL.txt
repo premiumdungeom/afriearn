@@ -1,0 +1,610 @@
+-- Enhanced SQL Schema for Ninja Hope
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  referral_code TEXT UNIQUE NOT NULL DEFAULT substr(md5(random()::text), 1, 8),
+  referred_by TEXT,
+  balance DECIMAL DEFAULT 0,
+  wallet_balance DECIMAL DEFAULT 0,
+  tasks_completed INTEGER DEFAULT 0,
+  referrals_count INTEGER DEFAULT 0,
+  role TEXT DEFAULT 'user',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Referral History table
+CREATE TABLE IF NOT EXISTS referral_history (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  referrer_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  referred_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  amount DECIMAL NOT NULL DEFAULT 300,
+  status TEXT DEFAULT 'completed',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Withdrawals table
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  amount DECIMAL NOT NULL,
+  status TEXT DEFAULT 'pending',
+  bank_details_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Deposits table
+CREATE TABLE IF NOT EXISTS deposits (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  amount DECIMAL NOT NULL,
+  proof_url TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  deposit_type TEXT DEFAULT 'naira',
+  crypto_amount DECIMAL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Bank details table
+CREATE TABLE IF NOT EXISTS bank_details (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  bank_name TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  account_name TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, account_number)
+);
+
+-- Task completions table
+CREATE TABLE IF NOT EXISTS task_completions (
+  id BIGSERIAL PRIMARY KEY,
+  task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  proof_url TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_referral_history_referrer ON referral_history(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_referral_history_referred ON referral_history(referred_user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_id);
+CREATE INDEX IF NOT EXISTS idx_bank_details_user_id ON bank_details(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_completions_task_id ON task_completions(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_completions_user_id ON task_completions(user_id);
+
+-- Enable Row Level Security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE referral_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bank_details ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_completions ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for users table
+DROP POLICY IF EXISTS "Allow public signups" ON users;
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Admins can manage all users" ON users;
+
+CREATE POLICY "Allow public signups" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON users FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Admins can manage all users" ON users FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+
+-- Policies for referral_history
+CREATE POLICY "Users can view own referral history" ON referral_history FOR SELECT USING (auth.uid() = referrer_id);
+CREATE POLICY "Admins can manage referral history" ON referral_history FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+
+-- Create policies for tasks table
+DROP POLICY IF EXISTS "Anyone can view approved tasks" ON tasks;
+DROP POLICY IF EXISTS "Users can view own tasks" ON tasks;
+DROP POLICY IF EXISTS "Users can insert own tasks" ON tasks;
+DROP POLICY IF EXISTS "Users can update own tasks" ON tasks;
+DROP POLICY IF EXISTS "Admins can manage all tasks" ON tasks;
+
+CREATE POLICY "Anyone can view approved tasks" ON tasks FOR SELECT USING (status = 'approved');
+CREATE POLICY "Users can view own tasks" ON tasks FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own tasks" ON tasks FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own tasks" ON tasks FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Admins can manage all tasks" ON tasks FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+
+-- Policies for other tables...
+CREATE POLICY "Users can view own withdrawals" ON withdrawals FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own withdrawals" ON withdrawals FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own deposits" ON deposits FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own deposits" ON deposits FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own bank details" ON bank_details FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own task completions" ON task_completions FOR ALL USING (auth.uid() = user_id);
+
+-- Function to handle referral rewards
+CREATE OR REPLACE FUNCTION handle_referral_reward()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If this user was referred by someone and it's their first time
+  IF NEW.referred_by IS NOT NULL THEN
+    -- Update the referrer's balance and count
+    UPDATE users 
+    SET 
+      balance = balance + 300,
+      referrals_count = referrals_count + 1,
+      wallet_balance = wallet_balance + 300
+    WHERE referral_code = NEW.referred_by;
+    
+    -- Create referral history record
+    INSERT INTO referral_history (referrer_id, referred_user_id, amount, status)
+    SELECT id, NEW.id, 300, 'completed'
+    FROM users 
+    WHERE referral_code = NEW.referred_by;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to automatically handle referrals
+DROP TRIGGER IF EXISTS on_user_referral ON users;
+CREATE TRIGGER on_user_referral
+  AFTER INSERT ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_referral_reward();
+  
+  
+  then
+  
+  -- Disable RLS on all tables temporarily
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE referral_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE withdrawals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE deposits DISABLE ROW LEVEL SECURITY;
+ALTER TABLE bank_details DISABLE ROW LEVEL SECURITY;
+ALTER TABLE task_completions DISABLE ROW LEVEL SECURITY;
+
+-- Drop the existing trigger and function
+DROP TRIGGER IF EXISTS on_user_referral ON users;
+DROP FUNCTION IF EXISTS handle_referral_reward();
+
+-- Create a simpler referral function that only updates wallet_balance
+CREATE OR REPLACE FUNCTION handle_referral_reward()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If this user was referred by someone
+  IF NEW.referred_by IS NOT NULL THEN
+    -- Update the referrer's wallet balance and referral count
+    UPDATE users 
+    SET 
+      wallet_balance = wallet_balance + 300,
+      referrals_count = referrals_count + 1
+    WHERE referral_code = NEW.referred_by;
+    
+    -- Create referral history record
+    INSERT INTO referral_history (referrer_id, referred_user_id, amount, status)
+    SELECT id, NEW.id, 300, 'completed'
+    FROM users 
+    WHERE referral_code = NEW.referred_by;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Recreate the trigger
+CREATE TRIGGER on_user_referral
+  AFTER INSERT ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_referral_reward();
+  
+  then 
+  
+  -- Add/ensure columns for cashback
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cashback_balance DECIMAL DEFAULT 0;
+
+-- Table for daily sign-in history
+CREATE TABLE IF NOT EXISTS signin_history (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  amount DECIMAL NOT NULL,
+  claimed_on DATE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signin_history_user_date ON signin_history(user_id, claimed_on);
+
+-- Optionally: RLS policy
+ALTER TABLE signin_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own signin history" ON signin_history FOR ALL USING (auth.uid() = user_id);
+
+-- Optionally, can create a function/trigger if you want to automate (not urgent here as it's 1 row per claim, updated via PHP)
+
+-- Users table already has cashback_balance (don't use main balance for daily, use only cashback_balance)
+
+then
+
+-- Chat system for Ninja Hope
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  sender_type TEXT NOT NULL, -- 'user' or 'admin'
+  message TEXT,
+  attachment_url TEXT,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  last_message_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  unread_count INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active'
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_last_message ON chat_sessions(last_message_at);
+
+-- RLS Policies
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own messages" ON chat_messages FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own messages" ON chat_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can view own session" ON chat_sessions FOR SELECT USING (auth.uid() = user_id);
+
+-- Service role can do everything (for Telegram bot)
+CREATE POLICY "Service role full access" ON chat_messages FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+CREATE POLICY "Service role full access sessions" ON chat_sessions FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+
+then
+
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Users can view own session" ON chat_sessions;
+DROP POLICY IF EXISTS "Service role full access sessions" ON chat_sessions;
+
+-- Create new policies that allow service role to bypass RLS
+CREATE POLICY "Allow all access for service role" ON chat_sessions 
+FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+CREATE POLICY "Users can view own session" ON chat_sessions 
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own session" ON chat_sessions 
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+then
+
+
+-- Face verification table
+CREATE TABLE IF NOT EXISTS face_verifications (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  verification_code TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+  rejection_reason TEXT,
+  admin_notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_face_verifications_user_id ON face_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_face_verifications_status ON face_verifications(status);
+CREATE INDEX IF NOT EXISTS idx_face_verifications_code ON face_verifications(verification_code);
+
+-- RLS Policies
+ALTER TABLE face_verifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access" ON face_verifications FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+-- Add verification status to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS face_verified BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT;
+
+then
+
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Service role full access" ON face_verifications;
+
+-- Create new policies that properly allow service role access
+CREATE POLICY "Allow all access for service role" ON face_verifications 
+FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+CREATE POLICY "Users can view own verifications" ON face_verifications 
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own verifications" ON face_verifications 
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+then
+
+-- Update face_verifications table to use storage URLs
+ALTER TABLE face_verifications 
+ALTER COLUMN image_url TYPE TEXT;
+
+-- Add storage path column for cleanup
+ALTER TABLE face_verifications 
+ADD COLUMN IF NOT EXISTS storage_path TEXT;
+
+then 
+
+
+-- Create the storage bucket for task proofs
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('task-proofs', 'task-proofs', true);
+
+-- Create policies for the bucket
+CREATE POLICY "Anyone can view task proofs" ON storage.objects
+FOR SELECT USING (bucket_id = 'task-proofs');
+
+CREATE POLICY "Authenticated users can upload task proofs" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'task-proofs' 
+  AND auth.role() = 'authenticated'
+);
+
+CREATE POLICY "Service role can manage task proofs" ON storage.objects
+FOR ALL USING (bucket_id = 'task-proofs' AND auth.role() = 'service_role');
+
+then
+
+-- Add task system tables
+CREATE TABLE IF NOT EXISTS tasks (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  platform TEXT NOT NULL,
+  task_url TEXT NOT NULL,
+  reward_amount DECIMAL NOT NULL DEFAULT 0,
+  max_completions INTEGER DEFAULT NULL,
+  current_completions INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  created_by TEXT DEFAULT 'admin',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_submissions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  proof_url TEXT,
+  status TEXT DEFAULT 'pending',
+  admin_notes TEXT,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+  UNIQUE(task_id, user_id)
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_platform ON tasks(platform);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_user_id ON task_submissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_task_id ON task_submissions(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_status ON task_submissions(status);
+
+-- RLS Policies
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view active tasks" ON tasks FOR SELECT USING (status = 'active');
+CREATE POLICY "Service role full access tasks" ON tasks FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+CREATE POLICY "Users can view own submissions" ON task_submissions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own submissions" ON task_submissions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Service role full access submissions" ON task_submissions FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+then
+
+-- First, drop the existing foreign key constraints
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_task_id_fkey;
+
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_user_id_fkey;
+
+-- Recreate without CASCADE delete
+ALTER TABLE task_submissions 
+ADD CONSTRAINT task_submissions_task_id_fkey 
+FOREIGN KEY (task_id) REFERENCES tasks(id);
+
+ALTER TABLE task_submissions 
+ADD CONSTRAINT task_submissions_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES users(id);
+
+-- Remove the UNIQUE constraint that prevents resubmissions
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_task_id_user_id_key;
+
+then
+
+-- Add columns to track deleted tasks in submissions
+ALTER TABLE task_submissions 
+ADD COLUMN IF NOT EXISTS task_deleted BOOLEAN DEFAULT false;
+
+ALTER TABLE task_submissions 
+ADD COLUMN IF NOT EXISTS original_task_title TEXT;
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_task_submissions_task_deleted ON task_submissions(task_deleted);
+
+
+then
+
+-- First, drop the existing foreign key constraints
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_task_id_fkey;
+
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_user_id_fkey;
+
+-- Recreate with SET NULL instead of CASCADE
+ALTER TABLE task_submissions 
+ADD CONSTRAINT task_submissions_task_id_fkey 
+FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
+
+ALTER TABLE task_submissions 
+ADD CONSTRAINT task_submissions_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Remove the UNIQUE constraint that prevents resubmissions
+ALTER TABLE task_submissions 
+DROP CONSTRAINT IF EXISTS task_submissions_task_id_user_id_key;
+
+-- Add columns to track deleted tasks in submissions
+ALTER TABLE task_submissions 
+ADD COLUMN IF NOT EXISTS task_deleted BOOLEAN DEFAULT false;
+
+ALTER TABLE task_submissions 
+ADD COLUMN IF NOT EXISTS original_task_title TEXT;
+
+ALTER TABLE task_submissions 
+ADD COLUMN IF NOT EXISTS original_reward_amount DECIMAL DEFAULT 0;
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_task_submissions_task_deleted ON task_submissions(task_deleted);
+
+then
+
+-- Add archive columns to tasks table
+ALTER TABLE tasks 
+ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS archived_reason TEXT;
+
+-- Update the RLS policy to exclude archived tasks from active view
+DROP POLICY IF EXISTS "Anyone can view active tasks" ON tasks;
+
+CREATE POLICY "Anyone can view active tasks" ON tasks 
+FOR SELECT USING (status = 'active' AND archived_at IS NULL);
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_tasks_archived ON tasks(archived_at);
+
+then
+
+-- Update bank_details table with additional fields
+ALTER TABLE bank_details 
+ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS verification_attempts INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_verification_attempt TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS bank_code TEXT;
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_bank_details_user_default ON bank_details(user_id, is_default);
+CREATE INDEX IF NOT EXISTS idx_bank_details_verified ON bank_details(is_verified);
+
+-- Update RLS policies if needed
+DROP POLICY IF EXISTS "Users can manage own bank details" ON bank_details;
+
+CREATE POLICY "Users can view own bank details" ON bank_details 
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own bank details" ON bank_details 
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own bank details" ON bank_details 
+FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own bank details" ON bank_details 
+FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Service role full access bank details" ON bank_details 
+FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+then 
+
+-- withdrawal_settings.sql
+CREATE TABLE IF NOT EXISTS withdrawal_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default-settings',
+    is_live BOOLEAN DEFAULT false,
+    opens_at TIMESTAMP WITH TIME ZONE,
+    closes_at TIMESTAMP WITH TIME ZONE,
+    min_amount DECIMAL DEFAULT 10000,
+    max_amount DECIMAL DEFAULT 10000,
+    required_approved_tasks INTEGER DEFAULT 5,
+    require_face_verification BOOLEAN DEFAULT true,
+    once_per_day BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert default settings
+INSERT INTO withdrawal_settings (id, is_live, min_amount, max_amount, required_approved_tasks, require_face_verification, once_per_day)
+VALUES ('default-settings', false, 10000, 10000, 5, true, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Update withdrawals table to track daily withdrawals
+ALTER TABLE withdrawals 
+ADD COLUMN IF NOT EXISTS withdrawal_date DATE DEFAULT CURRENT_DATE;
+
+-- Create index for daily withdrawal check
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user_date ON withdrawals(user_id, withdrawal_date);
+
+-- RLS Policies for withdrawal_settings
+ALTER TABLE withdrawal_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role full access withdrawal_settings" ON withdrawal_settings FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+then
+
+-- Add updated_at column to withdrawals table
+ALTER TABLE withdrawals 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- Update existing records to have updated_at
+UPDATE withdrawals SET updated_at = created_at WHERE updated_at IS NULL;
+
+then
+
+-- Add IP tracking to users table
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS registration_ip INET,
+ADD COLUMN IF NOT EXISTS last_login_ip INET,
+ADD COLUMN IF NOT EXISTS device_fingerprint TEXT;
+
+-- Create index for IP lookup
+CREATE INDEX IF NOT EXISTS idx_users_registration_ip ON users(registration_ip);
+CREATE INDEX IF NOT EXISTS idx_users_device_fingerprint ON users(device_fingerprint);
+
+-- Create table for IP associations (to track multiple accounts per IP)
+CREATE TABLE IF NOT EXISTS ip_associations (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  ip_address INET NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  association_type TEXT DEFAULT 'registration', -- 'registration' or 'login'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ip_associations_ip ON ip_associations(ip_address);
+CREATE INDEX IF NOT EXISTS idx_ip_associations_user ON ip_associations(user_id);
+
+
+then 
+
+-- Add updated_at column to users table if it doesn't exist
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- Update existing records to have updated_at
+UPDATE users SET updated_at = created_at WHERE updated_at IS NULL;
