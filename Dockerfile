@@ -1,10 +1,27 @@
+# Use official PHP with Apache
 FROM php:8.2-apache
 
-# Copy project files to Apache web root
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libzip-dev \
+    zip \
+    unzip \
+    git \
+    curl \
+    && docker-php-ext-install zip pdo pdo_mysql
+
+# Enable Apache mod_rewrite
+RUN a2enmod rewrite
+
+# Copy application files
 COPY . /var/www/html/
 
-# Make sure Apache can read files
-RUN chown -R www-data:www-data /var/www/html
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
 
-# Expose web port
+# Expose port 80
 EXPOSE 80
+
+# Start Apache
+CMD ["apache2-foreground"]
