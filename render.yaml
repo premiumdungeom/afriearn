@@ -1,6 +1,14 @@
 services:
   - type: web
     name: afriearn
-    env: php
-    buildCommand: ""
-    startCommand: "php -S 0.0.0.0:10000 -t ."
+    runtime: docker
+    repo: https://github.com/premiumdungeom/afriearn
+    branch: main
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+    healthCheckPath: /login.php
+    autoDeploy: true
+    # Render will handle port 10000 automatically
