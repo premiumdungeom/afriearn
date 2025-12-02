@@ -9,6 +9,6 @@ services:
         sync: false
       - key: SUPABASE_KEY
         sync: false
-    healthCheckPath: /login.php
+    healthCheckPath: /health.php
     autoDeploy: true
     # Render will handle port 10000 automatically
