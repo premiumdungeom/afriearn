@@ -41,7 +41,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Ninja Hope</title>
+    <title>About Afri Earn</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -290,12 +290,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <div class="card">
             <div class="logo-header">
                 <i class="fas fa-user-ninja logo-icon"></i>
-                <h2 style="color: var(--accent-green); margin-bottom: 0.5rem;">Ninja Hope</h2>
+                <h2 style="color: var(--accent-green); margin-bottom: 0.5rem;">Afri Earn</h2>
                 <p style="color: var(--text-muted); font-size: 0.9rem;">The Hope of the Nation</p>
             </div>
             
             <p>
-                <strong class="highlight">Ninja Hope</strong> is the <strong>hope of the nation</strong>. 
+                <strong class="highlight">Afri Earn</strong> is the <strong>hope of the nation</strong>. 
                 Earn real money by <strong>referring friends</strong> and <strong>completing tasks</strong>.
             </p>
             
@@ -358,7 +358,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </div>
 
             <p style="text-align: center; font-style: italic; margin-top: 1.5rem;">
-                Be honest. Grow smart. <strong class="highlight">Ninja Hope — Earn with Integrity!</strong>
+                Be honest. Grow smart. <strong class="highlight">Afri Earn — Earn with Integrity!</strong>
             </p>
             
             <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--light-gray);">

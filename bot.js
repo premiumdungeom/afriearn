@@ -2,7 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
 // Configuration
-const TG_TOKEN = '8587185113:AAGhBQqEoLi3w9YGGSvCW0KhWVWIWreoSDs';
+const TG_TOKEN = '8163835522:AAGFWBWROY92vRY7G0lHxMCtHgAtsOzinPo';
 const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
 const SUPABASE_URL = 'https://njgiemjywihzkdzwgpmo.supabase.co';
 
@@ -91,6 +91,58 @@ async function detailedDebug() {
         console.error("Detailed debug error:", error.response?.data || error.message);
     }
 }
+
+// Add this function to your bot
+async function checkStorageUsage() {
+    try {
+        console.log('📊 Checking storage usage...');
+        
+        // Check face verification images
+        const verifications = await supabase.get('/rest/v1/face_verifications?select=status,storage_path');
+        
+        let pendingWithStorage = 0;
+        let approvedWithStorage = 0;
+        let rejectedWithStorage = 0;
+        
+        verifications.data.forEach(v => {
+            if (v.storage_path) {
+                if (v.status === 'pending') pendingWithStorage++;
+                if (v.status === 'approved') approvedWithStorage++;
+                if (v.status === 'rejected') rejectedWithStorage++;
+            }
+        });
+        
+        console.log('📸 Face Verifications Storage:');
+        console.log(`   Pending with images: ${pendingWithStorage}`);
+        console.log(`   Approved with images (SHOULD BE 0): ${approvedWithStorage}`);
+        console.log(`   Rejected with images (SHOULD BE 0): ${rejectedWithStorage}`);
+        
+        // Check task proofs
+        const submissions = await supabase.get('/rest/v1/task_submissions?select=status,proof_url');
+        
+        let pendingProofs = 0;
+        let approvedProofs = 0;
+        let rejectedProofs = 0;
+        
+        submissions.data.forEach(s => {
+            if (s.proof_url) {
+                if (s.status === 'pending') pendingProofs++;
+                if (s.status === 'approved') approvedProofs++;
+                if (s.status === 'rejected') rejectedProofs++;
+            }
+        });
+        
+        console.log('📸 Task Proofs Storage:');
+        console.log(`   Pending with proofs: ${pendingProofs}`);
+        console.log(`   Approved with proofs: ${approvedProofs} (might not be deleted yet)`);
+        console.log(`   Rejected with proofs: ${rejectedProofs} (might not be deleted yet)`);
+        
+    } catch (error) {
+        console.error('Storage check error:', error);
+    }
+}
+
+// Add a command to trigger it
 
 // Helper function to get user info
 async function getUserInfo(userId) {
@@ -606,6 +658,348 @@ bot.onText(/\/reply_(.+)/, async (msg, match) => {
     }
 });
 
+// Edit task details
+bot.onText(/\/task_edit_(.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const fullMatch = match[1];
+    
+    console.log(`✏️ Edit task command: ${fullMatch}`);
+    
+    try {
+        // Split the command: task_id|field|new_value
+        const parts = fullMatch.split('|');
+        
+        if (parts.length < 3) {
+            await bot.sendMessage(chatId, 
+                `<b>✏️ Edit Task</b>\n\n` +
+                `<b>Usage:</b>\n` +
+                `<code>/task_edit_&lt;task_id&gt;|&lt;field&gt;|&lt;new_value&gt;</code>\n\n` +
+                `<b>Fields:</b>\n` +
+                `• <code>title</code> - Task title\n` +
+                `• <code>desc</code> - Description\n` +
+                `• <code>platform</code> - Platform (telegram, discord, etc.)\n` +
+                `• <code>url</code> - Task URL\n` +
+                `• <code>reward</code> - Reward amount\n` +
+                `• <code>max</code> - Max completions\n\n` +
+                `<b>Examples:</b>\n` +
+                `<code>/task_edit_12345678-1234-1234-123456789012|title|Follow our Discord</code>\n` +
+                `<code>/task_edit_12345678-1234-1234-123456789012|platform|discord</code>\n` +
+                `<code>/task_edit_12345678-1234-1234-123456789012|url|https://discord.gg/yourlink</code>`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+        
+        const taskId = parts[0];
+        const field = parts[1];
+        const newValue = parts.slice(2).join('|'); // In case value contains |
+        
+        // First get the task to confirm it exists
+        const taskResponse = await supabase.get(`/rest/v1/tasks?id=eq.${taskId}`);
+        const task = taskResponse.data?.[0];
+        
+        if (!task) {
+            await bot.sendMessage(chatId, '❌ Task not found');
+            return;
+        }
+        
+        // Prepare update data based on field
+        let updateData = {};
+        let fieldName = '';
+        
+        switch (field) {
+            case 'title':
+                updateData = { title: newValue };
+                fieldName = 'Title';
+                break;
+            case 'desc':
+                updateData = { description: newValue };
+                fieldName = 'Description';
+                break;
+            case 'platform':
+                updateData = { platform: newValue };
+                fieldName = 'Platform';
+                break;
+            case 'url':
+                updateData = { task_url: newValue };
+                fieldName = 'URL';
+                break;
+            case 'reward':
+                updateData = { reward_amount: parseFloat(newValue) };
+                fieldName = 'Reward';
+                break;
+            case 'max':
+                updateData = { max_completions: newValue === '0' ? null : parseInt(newValue) };
+                fieldName = 'Max Completions';
+                break;
+            default:
+                await bot.sendMessage(chatId, '❌ Invalid field. Use: title, desc, platform, url, reward, max');
+                return;
+        }
+        
+        // Add updated_at timestamp
+        updateData.updated_at = new Date().toISOString();
+        
+        // Update the task
+        const updateResponse = await supabase.patch(`/rest/v1/tasks?id=eq.${taskId}`, updateData);
+        
+        if (updateResponse.status === 200 || updateResponse.status === 204) {
+            await bot.sendMessage(chatId, 
+                `✅ Task updated!\n\n` +
+                `<b>${fieldName}:</b>\n` +
+                `<s>${task[field === 'url' ? 'task_url' : field === 'reward' ? 'reward_amount' : field === 'max' ? 'max_completions' : field] || 'N/A'}</s>\n` +
+                `<b>➔</b>\n` +
+                `${newValue}`
+            );
+        } else {
+            await bot.sendMessage(chatId, '❌ Failed to update task');
+        }
+    } catch (error) {
+        console.error('Edit task error:', error);
+        await bot.sendMessage(chatId, '❌ Error updating task: ' + error.message);
+    }
+});
+
+// Move task position (up/down)
+bot.onText(/\/task_move_(.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const fullMatch = match[1];
+    
+    console.log(`📤 Move task command: ${fullMatch}`);
+    
+    try {
+        // Split: task_id|up or task_id|down
+        const parts = fullMatch.split('|');
+        
+        if (parts.length < 2) {
+            await bot.sendMessage(chatId, 
+                `<b>📤 Move Task Position</b>\n\n` +
+                `<b>Usage:</b>\n` +
+                `<code>/task_move_&lt;task_id&gt;|&lt;direction&gt;</code>\n\n` +
+                `<b>Directions:</b>\n` +
+                `• <code>up</code> - Move task up (make it appear earlier)\n` +
+                `• <code>down</code> - Move task down (make it appear later)\n\n` +
+                `<b>Example:</b>\n` +
+                `<code>/task_move_12345678-1234-1234-123456789012|up</code>\n` +
+                `<code>/task_move_12345678-1234-1234-123456789012|down</code>`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+        
+        const taskId = parts[0];
+        const direction = parts[1].toLowerCase();
+        
+        if (!['up', 'down'].includes(direction)) {
+            await bot.sendMessage(chatId, '❌ Invalid direction. Use: up or down');
+            return;
+        }
+        
+        // Get all active tasks ordered by created_at
+        const tasksResponse = await supabase.get('/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc');
+        const tasks = tasksResponse.data || [];
+        
+        // Find the task index
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
+        
+        if (taskIndex === -1) {
+            await bot.sendMessage(chatId, '❌ Task not found or not active');
+            return;
+        }
+        
+        if (direction === 'up' && taskIndex === 0) {
+            await bot.sendMessage(chatId, '❌ Task is already at the top');
+            return;
+        }
+        
+        if (direction === 'down' && taskIndex === tasks.length - 1) {
+            await bot.sendMessage(chatId, '❌ Task is already at the bottom');
+            return;
+        }
+        
+        // Get the task to move
+        const taskToMove = tasks[taskIndex];
+        const targetIndex = direction === 'up' ? taskIndex - 1 : taskIndex + 1;
+        const targetTask = tasks[targetIndex];
+        
+        // Swap created_at timestamps
+        const tempCreatedAt = taskToMove.created_at;
+        
+        // Update task to move (give it the target's created_at)
+        await supabase.patch(`/rest/v1/tasks?id=eq.${taskId}`, {
+            created_at: targetTask.created_at,
+            updated_at: new Date().toISOString()
+        });
+        
+        // Update target task (give it the moved task's created_at)
+        await supabase.patch(`/rest/v1/tasks?id=eq.${targetTask.id}`, {
+            created_at: tempCreatedAt,
+            updated_at: new Date().toISOString()
+        });
+        
+        const positionChange = direction === 'up' ? 'moved up ↑' : 'moved down ↓';
+        await bot.sendMessage(chatId, 
+            `✅ Task "${taskToMove.title}" ${positionChange}!\n\n` +
+            `<b>From position:</b> ${taskIndex + 1}\n` +
+            `<b>To position:</b> ${targetIndex + 1}\n\n` +
+            `Use <code>/task_active</code> to see the new order.`
+        );
+        
+    } catch (error) {
+        console.error('Move task error:', error);
+        await bot.sendMessage(chatId, '❌ Error moving task: ' + error.message);
+    }
+});
+
+// Move task to specific position
+bot.onText(/\/task_position_(.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const fullMatch = match[1];
+    
+    console.log(`🎯 Position task command: ${fullMatch}`);
+    
+    try {
+        // Split: task_id|position
+        const parts = fullMatch.split('|');
+        
+        if (parts.length < 2) {
+            await bot.sendMessage(chatId, 
+                `<b>🎯 Move Task to Specific Position</b>\n\n` +
+                `<b>Usage:</b>\n` +
+                `<code>/task_position_&lt;task_id&gt;|&lt;position&gt;</code>\n\n` +
+                `<b>Position:</b> Number from 1 to total active tasks\n\n` +
+                `<b>Example:</b>\n` +
+                `<code>/task_position_12345678-1234-1234-123456789012|3</code> (Move to 3rd position)\n` +
+                `<code>/task_position_12345678-1234-1234-123456789012|1</code> (Move to top)\n`,
+                { parse_mode: 'HTML' }
+            );
+            return;
+        }
+        
+        const taskId = parts[0];
+        const targetPosition = parseInt(parts[1]);
+        
+        if (isNaN(targetPosition) || targetPosition < 1) {
+            await bot.sendMessage(chatId, '❌ Invalid position. Must be a number > 0');
+            return;
+        }
+        
+        // Get all active tasks
+        const tasksResponse = await supabase.get('/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc');
+        const tasks = tasksResponse.data || [];
+        
+        // Find the task
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
+        
+        if (taskIndex === -1) {
+            await bot.sendMessage(chatId, '❌ Task not found or not active');
+            return;
+        }
+        
+        if (targetPosition > tasks.length) {
+            await bot.sendMessage(chatId, `❌ Position must be between 1 and ${tasks.length}`);
+            return;
+        }
+        
+        const actualTargetIndex = targetPosition - 1;
+        
+        if (taskIndex === actualTargetIndex) {
+            await bot.sendMessage(chatId, `❌ Task is already at position ${targetPosition}`);
+            return;
+        }
+        
+        // Get the task to move
+        const taskToMove = tasks[taskIndex];
+        
+        // Create new order by removing the task and inserting at new position
+        const reorderedTasks = [...tasks];
+        reorderedTasks.splice(taskIndex, 1); // Remove from current position
+        reorderedTasks.splice(actualTargetIndex, 0, taskToMove); // Insert at new position
+        
+        // Update created_at for all tasks to reflect new order
+        // We'll give them new timestamps in reverse order (newest first)
+        const baseTime = new Date();
+        
+        for (let i = 0; i < reorderedTasks.length; i++) {
+            const newCreatedAt = new Date(baseTime.getTime() - (i * 1000)); // 1 second apart
+            await supabase.patch(`/rest/v1/tasks?id=eq.${reorderedTasks[i].id}`, {
+                created_at: newCreatedAt.toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        }
+        
+        await bot.sendMessage(chatId, 
+            `✅ Task "${taskToMove.title}" moved to position ${targetPosition}!\n\n` +
+            `<b>Previous position:</b> ${taskIndex + 1}\n` +
+            `<b>New position:</b> ${targetPosition}\n\n` +
+            `Use <code>/task_active</code> to see the new order.`
+        );
+        
+    } catch (error) {
+        console.error('Position task error:', error);
+        await bot.sendMessage(chatId, '❌ Error positioning task: ' + error.message);
+    }
+});
+
+bot.onText(/\/storage_check/, async (msg) => {
+    const chatId = msg.chat.id;
+    
+    try {
+        await bot.sendMessage(chatId, '🔄 Checking storage usage...');
+        
+        // Run the check and send results
+        const verifications = await supabase.get('/rest/v1/face_verifications?select=status,storage_path');
+        
+        let message = '<b>📊 Storage Usage Report</b>\n\n';
+        message += '<b>📸 Face Verifications:</b>\n';
+        
+        // Count by status
+        const counts = { pending: 0, approved: 0, rejected: 0 };
+        const withStorage = { pending: 0, approved: 0, rejected: 0 };
+        
+        verifications.data.forEach(v => {
+            counts[v.status] = (counts[v.status] || 0) + 1;
+            if (v.storage_path) {
+                withStorage[v.status] = (withStorage[v.status] || 0) + 1;
+            }
+        });
+        
+        message += `   ⏳ Pending: ${counts.pending} total, ${withStorage.pending} with images\n`;
+        message += `   ✅ Approved: ${counts.approved} total, ${withStorage.approved} with images\n`;
+        message += `   ❌ Rejected: ${counts.rejected} total, ${withStorage.rejected} with images\n\n`;
+        
+        // Check if approved/rejected still have images (they shouldn't)
+        if (withStorage.approved > 0 || withStorage.rejected > 0) {
+            message += `⚠️ <b>Warning:</b> Some approved/rejected verifications still have images!\n`;
+            message += `Run cleanup with /storage_cleanup\n\n`;
+        }
+        
+        // Check task proofs too
+        const submissions = await supabase.get('/rest/v1/task_submissions?select=status,proof_url');
+        
+        const taskCounts = { pending: 0, approved: 0, rejected: 0 };
+        const withProofs = { pending: 0, approved: 0, rejected: 0 };
+        
+        submissions.data.forEach(s => {
+            taskCounts[s.status] = (taskCounts[s.status] || 0) + 1;
+            if (s.proof_url) {
+                withProofs[s.status] = (withProofs[s.status] || 0) + 1;
+            }
+        });
+        
+        message += '<b>📝 Task Proofs:</b>\n';
+        message += `   ⏳ Pending: ${taskCounts.pending} total, ${withProofs.pending} with proofs\n`;
+        message += `   ✅ Approved: ${taskCounts.approved} total, ${withProofs.approved} with proofs\n`;
+        message += `   ❌ Rejected: ${taskCounts.rejected} total, ${withProofs.rejected} with proofs\n`;
+        
+        await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+        
+    } catch (error) {
+        console.error('Storage check command error:', error);
+        await bot.sendMessage(chatId, '❌ Error checking storage');
+    }
+});
+
 // End chat command
 bot.onText(/\/end/, (msg) => {
     const chatId = msg.chat.id;
@@ -724,27 +1118,196 @@ bot.onText(/\/task_create (.+)/, async (msg, match) => {
     }
 });
 
+// Store pagination data for each user
+const taskPagination = new Map();
+
 bot.onText(/\/task_list/, async (msg) => {
     const chatId = msg.chat.id;
     console.log(`📋 Task list command from admin: ${chatId}`);
     
     try {
-        const response = await supabase.get('/rest/v1/tasks?order=created_at.desc&limit=10');
+        // Reset pagination for this chat
+        taskPagination.delete(chatId);
+        
+        // Get first page (0-9)
+        const response = await supabase.get('/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc&limit=10');
         const tasks = response.data || [];
         
         if (tasks.length === 0) {
-            await bot.sendMessage(chatId, '📭 No tasks found');
+            await bot.sendMessage(chatId, '📭 No active tasks found');
             return;
         }
         
-        let message = `<b>📋 Recent Tasks (${tasks.length})</b>\n\n`;
+        // Store first page data
+        taskPagination.set(chatId, {
+            page: 1,
+            hasMore: tasks.length === 10
+        });
+        
+        const message = createTaskListMessage(tasks, 1);
+        
+        const keyboard = {
+            inline_keyboard: []
+        };
+        
+        // Add pagination buttons if there might be more tasks
+        if (tasks.length === 10) {
+            keyboard.inline_keyboard.push([
+                {
+                    text: '➡️ Next Page',
+                    callback_data: 'task_page_2'
+                }
+            ]);
+        }
+        
+        await bot.sendMessage(chatId, message, { 
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+            reply_markup: keyboard
+        });
+        
+    } catch (error) {
+        console.error('Task list error:', error);
+        await bot.sendMessage(chatId, '❌ Error fetching tasks');
+    }
+});
+
+// Handle pagination callback
+bot.on('callback_query', async (callbackQuery) => {
+    const chatId = callbackQuery.message.chat.id;
+    const data = callbackQuery.data;
+    const messageId = callbackQuery.message.message_id;
+    
+    console.log(`📋 Pagination callback: ${data} from ${chatId}`);
+    
+    try {
+        if (data.startsWith('task_page_')) {
+            const page = parseInt(data.split('_')[2]);
+            
+            // Calculate offset
+            const offset = (page - 1) * 10;
+            
+            const response = await supabase.get(`/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc&limit=10&offset=${offset}`);
+            const tasks = response.data || [];
+            
+            if (tasks.length === 0) {
+                await bot.answerCallbackQuery(callbackQuery.id, { text: 'No more tasks!' });
+                return;
+            }
+            
+            // Update pagination data
+            const pagination = taskPagination.get(chatId) || { page: 1, hasMore: false };
+            pagination.page = page;
+            pagination.hasMore = tasks.length === 10;
+            taskPagination.set(chatId, pagination);
+            
+            const message = createTaskListMessage(tasks, page);
+            
+            // Create navigation buttons
+            const keyboard = {
+                inline_keyboard: []
+            };
+            
+            const navigationRow = [];
+            
+            // Previous button (if not on first page)
+            if (page > 1) {
+                navigationRow.push({
+                    text: '⬅️ Previous',
+                    callback_data: `task_page_${page - 1}`
+                });
+            }
+            
+            // Refresh button
+            navigationRow.push({
+                text: '🔄 Refresh',
+                callback_data: `task_refresh_${page}`
+            });
+            
+            // Next button (if there might be more)
+            if (tasks.length === 10) {
+                navigationRow.push({
+                    text: '➡️ Next',
+                    callback_data: `task_page_${page + 1}`
+                });
+            }
+            
+            if (navigationRow.length > 0) {
+                keyboard.inline_keyboard.push(navigationRow);
+            }
+            
+            // Edit the existing message
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+                reply_markup: keyboard
+            });
+            
+            await bot.answerCallbackQuery(callbackQuery.id);
+        }
+        
+        else if (data.startsWith('task_refresh_')) {
+            const page = parseInt(data.split('_')[2]);
+            const offset = (page - 1) * 10;
+            
+            const response = await supabase.get(`/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc&limit=10&offset=${offset}`);
+            const tasks = response.data || [];
+            
+            const message = createTaskListMessage(tasks, page);
+            
+            // Keep the same keyboard
+            await bot.answerCallbackQuery(callbackQuery.id, { text: 'Refreshed!' });
+        }
+        
+    } catch (error) {
+        console.error('Pagination error:', error);
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Error loading page!' });
+    }
+});
+
+// Helper function to create task list message
+function createTaskListMessage(tasks, page) {
+    const startNum = ((page - 1) * 10) + 1;
+    
+    let message = `<b>📋 Active Tasks - Page ${page}</b>\n`;
+    message += `<i>Showing ${startNum}-${startNum + tasks.length - 1}</i>\n\n`;
+    
+    tasks.forEach((task, index) => {
+        const taskNum = startNum + index;
+        message += `<b>${taskNum}. ${task.title}</b>\n`;
+        message += `<code>ID: ${task.id}</code>\n`;
+        message += `🪙 ₦${task.reward_amount} • 📱 ${task.platform}\n`;
+        message += `✅ ${task.current_completions || 0}/${task.max_completions || '∞'} completions\n`;
+        message += `<code>/task_view_${task.id}</code>\n\n`;
+    });
+    
+    return message;
+}
+
+// Current problematic line (shows ALL tasks):
+bot.onText(/\/task_list/, async (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`📋 Task list command from admin: ${chatId}`);
+    
+    try {
+        // FIX: Add filter for active tasks only
+        const response = await supabase.get('/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc&limit=10');
+        const tasks = response.data || [];
+        
+        if (tasks.length === 0) {
+            await bot.sendMessage(chatId, '📭 No active tasks found');
+            return;
+        }
+        
+        let message = `<b>📋 Active Tasks (${tasks.length})</b>\n\n`;
         
         tasks.forEach((task, index) => {
             message += `<b>${index + 1}. ${task.title}</b>\n`;
             message += `<code>ID: ${task.id}</code>\n`;
             message += `🪙 ₦${task.reward_amount} • 📱 ${task.platform}\n`;
             message += `✅ ${task.current_completions || 0}/${task.max_completions || '∞'} completions\n`;
-            message += `📊 Status: ${task.status}\n`;
             message += `<code>/task_view_${task.id}</code>\n\n`;
         });
         
@@ -879,6 +1442,49 @@ bot.onText(/\/task_pending_(.+)/, async (msg, match) => {
     } catch (error) {
         console.error('Task pending error:', error);
         await bot.sendMessage(chatId, '❌ Error fetching pending submissions');
+    }
+});
+
+// Add this cleanup command
+bot.onText(/\/storage_cleanup/, async (msg) => {
+    const chatId = msg.chat.id;
+    
+    try {
+        await bot.sendMessage(chatId, '🧹 Starting storage cleanup...');
+        
+        let cleaned = 0;
+        let errors = 0;
+        
+        // Find approved/rejected verifications that still have storage paths
+        const verifications = await supabase.get('/rest/v1/face_verifications?status=in.(approved,rejected)&storage_path=not.is.null');
+        
+        for (const verification of verifications.data) {
+            try {
+                await deleteImageFromStorage(verification.storage_path);
+                cleaned++;
+                
+                // Update verification to remove storage_path
+                await supabase.patch(`/rest/v1/face_verifications?id=eq.${verification.id}`, {
+                    storage_path: null
+                });
+                
+                await bot.sendMessage(chatId, `✅ Cleaned: ${verification.storage_path}`, { disable_notification: true });
+            } catch (error) {
+                errors++;
+                console.error('Cleanup error:', error);
+            }
+        }
+        
+        await bot.sendMessage(chatId, 
+            `🧹 Cleanup Complete!\n\n` +
+            `✅ Deleted images: ${cleaned}\n` +
+            `❌ Errors: ${errors}\n\n` +
+            `Use /storage_check to verify`
+        );
+        
+    } catch (error) {
+        console.error('Storage cleanup error:', error);
+        await bot.sendMessage(chatId, '❌ Error during cleanup');
     }
 });
 
@@ -1511,7 +2117,6 @@ bot.onText(/\/withdrawal_max (\d+)/, async (msg, match) => {
     }
 });
 
-// Withdrawal approval commands
 bot.onText(/\/withdrawal_pending/, async (msg) => {
     const chatId = msg.chat.id;
     
@@ -1524,19 +2129,36 @@ bot.onText(/\/withdrawal_pending/, async (msg) => {
             return;
         }
         
-        let message = `<b>⏳ Pending Withdrawals (${withdrawals.length})</b>\n\n`;
+        // CHANGED HERE: Take only first 3 withdrawals
+        const limitedWithdrawals = withdrawals.slice(0, 3);
         
-        for (const withdrawal of withdrawals) {
-            // Get user info
-            const userResponse = await supabase.get(`/rest/v1/users?id=eq.${withdrawal.user_id}`);
-            const user = userResponse.data?.[0];
-            
-            // Get bank info
-            const bankResponse = await supabase.get(`/rest/v1/bank_details?id=eq.${withdrawal.bank_details_id}`);
-            const bank = bankResponse.data?.[0];
-            
-            // Get multiple accounts count
-            const multipleAccountsCount = await getMultipleAccountsCount(withdrawal.user_id);
+        // OPTIMIZATION: Collect all user IDs first
+        const userIds = limitedWithdrawals.map(w => w.user_id);
+        const bankIds = limitedWithdrawals.map(w => w.bank_details_id).filter(id => id);
+        
+        // Batch get all users
+        const usersResponse = await supabase.get(`/rest/v1/users?id=in.(${userIds.join(',')})`);
+        const users = usersResponse.data || [];
+        const usersMap = new Map(users.map(u => [u.id, u]));
+        
+        // Batch get all banks
+        let banksMap = new Map();
+        if (bankIds.length > 0) {
+            const banksResponse = await supabase.get(`/rest/v1/bank_details?id=in.(${bankIds.join(',')})`);
+            const banks = banksResponse.data || [];
+            banksMap = new Map(banks.map(b => [b.id, b]));
+        }
+        
+        // Batch check multiple accounts
+        const multipleAccountsMap = await getMultipleAccountsCountBatch(userIds);
+        
+        // CHANGED HERE: Show "X out of Y" format
+        let message = `<b>⏳ Pending Withdrawals (${limitedWithdrawals.length}/${withdrawals.length})</b>\n\n`;
+        
+        for (const withdrawal of limitedWithdrawals) {
+            const user = usersMap.get(withdrawal.user_id);
+            const bank = banksMap.get(withdrawal.bank_details_id);
+            const multipleAccountsCount = multipleAccountsMap.get(withdrawal.user_id) || 0;
             
             message += `<b>💰 ₦${withdrawal.amount}</b>\n`;
             message += `<b>User:</b> ${user?.name || 'Unknown'} (@${user?.username || 'N/A'})`;
@@ -1556,6 +2178,12 @@ bot.onText(/\/withdrawal_pending/, async (msg) => {
             message += `<code>/withdrawal_reject_${withdrawal.id} reason</code>\n\n`;
         }
         
+        // CHANGED HERE: Add pagination buttons if there are more withdrawals
+        if (withdrawals.length > 3) {
+            message += `\n<i>Showing first 3 of ${withdrawals.length} pending withdrawals</i>\n`;
+            message += `<b>📋 View all:</b> <code>/withdrawal_pending_all</code>`;
+        }
+        
         await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
     } catch (error) {
         console.error('Withdrawal pending error:', error);
@@ -1563,15 +2191,86 @@ bot.onText(/\/withdrawal_pending/, async (msg) => {
     }
 });
 
-// Command to check multiple accounts for a specific user
+// NEW OPTIMIZED: Check multiple accounts for BATCH of users
+async function getMultipleAccountsCountBatch(userIds) {
+    try {
+        if (!userIds || userIds.length === 0) {
+            return new Map();
+        }
+        
+        // Get all IP associations for these users in one query
+        const response = await supabase.get(`/rest/v1/ip_associations?user_id=in.(${userIds.join(',')})&select=user_id,ip_address`);
+        const ipAssociations = response.data || [];
+        
+        if (ipAssociations.length === 0) {
+            return new Map();
+        }
+        
+        // Group IPs by user
+        const userIps = new Map();
+        ipAssociations.forEach(assoc => {
+            if (!userIps.has(assoc.user_id)) {
+                userIps.set(assoc.user_id, []);
+            }
+            userIps.get(assoc.user_id).push(assoc.ip_address);
+        });
+        
+        // Get unique IPs across all users
+        const allIps = [...new Set(ipAssociations.map(a => a.ip_address))];
+        
+        // Get all users for these IPs in one query
+        const ipUsersResponse = await supabase.get(`/rest/v1/ip_associations?ip_address=in.(${allIps.join(',')})&select=ip_address,user_id`);
+        const ipUsers = ipUsersResponse.data || [];
+        
+        // Group users by IP
+        const ipUserMap = new Map();
+        ipUsers.forEach(item => {
+            if (!ipUserMap.has(item.ip_address)) {
+                ipUserMap.set(item.ip_address, []);
+            }
+            ipUserMap.get(item.ip_address).push(item.user_id);
+        });
+        
+        // Count multiple accounts per user
+        const result = new Map();
+        
+        userIds.forEach(userId => {
+            const userIpList = userIps.get(userId) || [];
+            const uniqueAssociatedUsers = new Set();
+            
+            userIpList.forEach(ip => {
+                const usersOnThisIp = ipUserMap.get(ip) || [];
+                usersOnThisIp.forEach(otherUserId => {
+                    if (otherUserId !== userId) {
+                        uniqueAssociatedUsers.add(otherUserId);
+                    }
+                });
+            });
+            
+            result.set(userId, uniqueAssociatedUsers.size);
+        });
+        
+        return result;
+    } catch (error) {
+        console.error('Batch multiple accounts check error:', error);
+        return new Map(); // Return empty map on error
+    }
+}
+
+// Keep old function for single user checks (like /check_multiple)
+async function getMultipleAccountsCount(userId) {
+    const batchResult = await getMultipleAccountsCountBatch([userId]);
+    return batchResult.get(userId) || 0;
+}
+
+// OPTIMIZED /check_multiple command
 bot.onText(/\/check_multiple (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const identifier = match[1]; // Can be user ID or username
+    const identifier = match[1];
     
     try {
         let userId = identifier;
         
-        // Check if identifier is a username
         if (identifier.startsWith('@')) {
             const username = identifier.substring(1);
             const userResponse = await supabase.get(`/rest/v1/users?username=eq.${username}`);
@@ -1584,7 +2283,9 @@ bot.onText(/\/check_multiple (.+)/, async (msg, match) => {
             userId = user.id;
         }
         
-        const multipleAccountsCount = await getMultipleAccountsCount(userId);
+        // Use the optimized batch function even for single user
+        const batchResult = await getMultipleAccountsCountBatch([userId]);
+        const multipleAccountsCount = batchResult.get(userId) || 0;
         
         // Get user info
         const userResponse = await supabase.get(`/rest/v1/users?id=eq.${userId}`);

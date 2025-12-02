@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
   referred_by TEXT,
   balance DECIMAL DEFAULT 0,
   wallet_balance DECIMAL DEFAULT 0,
-  tasks_completed INTEGER DEFAULT 0,
   referrals_count INTEGER DEFAULT 0,
   role TEXT DEFAULT 'user',
   status TEXT DEFAULT 'active',
@@ -65,35 +64,18 @@ CREATE TABLE IF NOT EXISTS bank_details (
   UNIQUE(user_id, account_number)
 );
 
--- Task completions table
-CREATE TABLE IF NOT EXISTS task_completions (
-  id BIGSERIAL PRIMARY KEY,
-  task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  proof_url TEXT,
-  notes TEXT,
-  status TEXT DEFAULT 'pending',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
 CREATE INDEX IF NOT EXISTS idx_referral_history_referrer ON referral_history(referrer_id);
 CREATE INDEX IF NOT EXISTS idx_referral_history_referred ON referral_history(referred_user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_id);
-CREATE INDEX IF NOT EXISTS idx_bank_details_user_id ON bank_details(user_id);
-CREATE INDEX IF NOT EXISTS idx_task_completions_task_id ON task_completions(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_completions_user_id ON task_completions(user_id);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE referral_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bank_details ENABLE ROW LEVEL SECURITY;
@@ -113,13 +95,6 @@ CREATE POLICY "Admins can manage all users" ON users FOR ALL USING (auth.jwt() -
 -- Policies for referral_history
 CREATE POLICY "Users can view own referral history" ON referral_history FOR SELECT USING (auth.uid() = referrer_id);
 CREATE POLICY "Admins can manage referral history" ON referral_history FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
-
--- Create policies for tasks table
-DROP POLICY IF EXISTS "Anyone can view approved tasks" ON tasks;
-DROP POLICY IF EXISTS "Users can view own tasks" ON tasks;
-DROP POLICY IF EXISTS "Users can insert own tasks" ON tasks;
-DROP POLICY IF EXISTS "Users can update own tasks" ON tasks;
-DROP POLICY IF EXISTS "Admins can manage all tasks" ON tasks;
 
 CREATE POLICY "Anyone can view approved tasks" ON tasks FOR SELECT USING (status = 'approved');
 CREATE POLICY "Users can view own tasks" ON tasks FOR SELECT USING (auth.uid() = user_id);

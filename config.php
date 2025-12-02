@@ -1,16 +1,27 @@
 <?php
 // config.php
 
-// Start session FIRST before any output
+// In config.php, replace the session_set_cookie_params() section:
+
 if (session_status() === PHP_SESSION_NONE) {
-    // Set session cookie parameters BEFORE starting session
+    // Get current domain
+    $domain = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    
+    // Remove 'www.' prefix for cookie to work on both www and non-www
+    if (strpos($domain, 'www.') === 0) {
+        $domain = substr($domain, 4);
+    }
+    
+    // Set session cookie parameters
     session_set_cookie_params([
-        'lifetime' => 6 * 60 * 60, // 6 hours default
+        'lifetime' => 6 * 60 * 60, // 6 hours
         'path' => '/',
-        'domain' => $_SERVER['HTTP_HOST'] ?? 'localhost',
-        'secure' => isset($_SERVER['HTTPS']), // Only send over HTTPS if available
-        'httponly' => true, // Prevent JavaScript access
-        'samesite' => 'Lax' // CSRF protection
+        'domain' => $domain, // Use cleaned domain
+        'secure' => isset($_SERVER['HTTPS']) || 
+                   (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && 
+                    $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'),
+        'httponly' => true,
+        'samesite' => 'Lax'
     ]);
     
     session_start();
@@ -237,9 +248,9 @@ function updateChatSession($user_id) {
     global $supabase;
     try {
         // Use service role key directly for this operation to bypass RLS
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/chat_sessions';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/chat_sessions';
         
         // First check if session exists using service role
         $check_url = $url . '?user_id=eq.' . $user_id;
@@ -353,7 +364,7 @@ function generateVerificationCode() {
 
 function uploadFaceImageToStorage($file, $user_id) {
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // Validate file
         $max_size = 5 * 1024 * 1024; // 5MB
@@ -373,7 +384,7 @@ function uploadFaceImageToStorage($file, $user_id) {
         $storage_path = 'face-verifications/' . $file_name;
         
         // Upload to Supabase Storage
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/' . $storage_path;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/' . $storage_path;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -393,7 +404,7 @@ function uploadFaceImageToStorage($file, $user_id) {
         curl_close($ch);
         
         if ($httpCode === 200) {
-            $public_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/public/face-verifications/' . $file_name;
+            $public_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/public/face-verifications/' . $file_name;
             return [
                 'success' => true, 
                 'public_url' => $public_url,
@@ -439,9 +450,9 @@ function submitFaceVerification($user_id, $public_url, $storage_path) {
 
 function deleteFaceImageFromStorage($storage_path) {
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/' . $storage_path;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/' . $storage_path;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -554,10 +565,10 @@ function rejectVerification($verification_id, $rejection_reason, $admin_notes = 
 function syncFaceVerificationStatus($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // Get latest verification
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/face_verifications?user_id=eq.' . $user_id . '&order=created_at.desc&limit=1';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/face_verifications?user_id=eq.' . $user_id . '&order=created_at.desc&limit=1';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -582,7 +593,7 @@ function syncFaceVerificationStatus($user_id) {
                 $is_approved = ($latest['status'] === 'approved');
                 
                 // Update user's face_verified status
-                $update_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/users?id=eq.' . $user_id;
+                $update_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/users?id=eq.' . $user_id;
                 $update_data = ['face_verified' => $is_approved];
                 
                 $ch = curl_init();
@@ -670,9 +681,9 @@ function getPendingVerifications() {
 function getActiveTasks() {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/tasks?status=eq.active&archived_at=is.null&order=created_at.desc';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -703,9 +714,9 @@ function getActiveTasks() {
 function getUserTaskSubmissions($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/task_submissions?user_id=eq.' . $user_id;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/task_submissions?user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -742,7 +753,7 @@ function submitTaskProof($user_id, $task_id, $proof_file) {
         }
         
         // Create submission record
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         $submission_data = [
             'task_id' => $task_id,
@@ -751,7 +762,7 @@ function submitTaskProof($user_id, $task_id, $proof_file) {
             'status' => 'pending'
         ];
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/task_submissions';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/task_submissions';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -786,7 +797,7 @@ function submitTaskProof($user_id, $task_id, $proof_file) {
 
 function uploadTaskProofToStorage($file, $user_id, $task_id) {
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         $max_size = 5 * 1024 * 1024;
         $allowed_types = ['image/jpeg', 'image/png', 'image/webp'];
@@ -803,7 +814,7 @@ function uploadTaskProofToStorage($file, $user_id, $task_id) {
         $file_name = $user_id . '_' . $task_id . '_' . time() . '.' . $file_ext;
         $storage_path = 'task-proofs/' . $file_name;
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/' . $storage_path;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/' . $storage_path;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -823,7 +834,7 @@ function uploadTaskProofToStorage($file, $user_id, $task_id) {
         curl_close($ch);
         
         if ($httpCode === 200) {
-            $public_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/public/task-proofs/' . $file_name;
+            $public_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/public/task-proofs/' . $file_name;
             return [
                 'success' => true, 
                 'public_url' => $public_url,
@@ -841,9 +852,9 @@ function uploadTaskProofToStorage($file, $user_id, $task_id) {
 
 function deleteTaskProofFromStorage($storage_path) {
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/storage/v1/object/' . $storage_path;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/storage/v1/object/' . $storage_path;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -883,9 +894,9 @@ function hasUserSubmittedTask($user_id, $task_id) {
 function getUserTaskSubmissionsWithInfo($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/task_submissions?user_id=eq.' . $user_id;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/task_submissions?user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -942,9 +953,9 @@ function getTaskStats($user_id) {
 function getTaskById($task_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/tasks?id=eq.' . $task_id;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/tasks?id=eq.' . $task_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -976,9 +987,9 @@ function getTaskById($task_id) {
 function getUserBankDetails($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details?user_id=eq.' . $user_id . '&order=is_default.desc,created_at.desc';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details?user_id=eq.' . $user_id . '&order=is_default.desc,created_at.desc';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1027,7 +1038,7 @@ function addBankAccount($user_id, $bank_name, $account_name, $account_number) {
             }
         }
         
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // If this is the first bank, set it as default
         $is_default = empty($existing_banks);
@@ -1041,7 +1052,7 @@ function addBankAccount($user_id, $bank_name, $account_name, $account_number) {
             'is_verified' => false // Auto-verify for simplicity
         ];
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1081,7 +1092,7 @@ function updateBankAccount($bank_id, $user_id, $bank_name, $account_name, $accou
             return ['success' => false, 'error' => 'Account number must be exactly 10 digits'];
         }
         
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         $update_data = [
             'bank_name' => $bank_name,
@@ -1090,7 +1101,7 @@ function updateBankAccount($bank_id, $user_id, $bank_name, $account_name, $accou
             'updated_at' => date('c')
         ];
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1125,9 +1136,9 @@ function updateBankAccount($bank_id, $user_id, $bank_name, $account_name, $accou
 function deleteBankAccount($bank_id, $user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1160,11 +1171,11 @@ function deleteBankAccount($bank_id, $user_id) {
 function setDefaultBankAccount($bank_id, $user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // First, set all user's banks to not default
         $reset_data = ['is_default' => false];
-        $reset_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details?user_id=eq.' . $user_id;
+        $reset_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details?user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1184,7 +1195,7 @@ function setDefaultBankAccount($bank_id, $user_id) {
         
         // Now set the selected bank as default
         $update_data = ['is_default' => true];
-        $update_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
+        $update_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/bank_details?id=eq.' . $bank_id . '&user_id=eq.' . $user_id;
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1222,9 +1233,9 @@ function setDefaultBankAccount($bank_id, $user_id) {
 function getWithdrawalSettings() {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/withdrawal_settings?id=eq.default-settings';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/withdrawal_settings?id=eq.default-settings';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1298,9 +1309,9 @@ function checkWithdrawalEligibility($user_id, $settings) {
         $today_withdrawal = false;
         if ($settings['once_per_day']) {
             $today = date('Y-m-d');
-            $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+            $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
             
-            $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/withdrawals?user_id=eq.' . $user_id . '&withdrawal_date=eq.' . $today;
+            $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/withdrawals?user_id=eq.' . $user_id . '&withdrawal_date=eq.' . $today;
             
             $ch = curl_init();
             curl_setopt_array($ch, [
@@ -1390,7 +1401,7 @@ function processWithdrawal($user_id, $amount, $bank_id) {
             return ['success' => false, 'error' => 'Insufficient balance'];
         }
         
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // Calculate how to split the amount between cashback and referral
         $cashback_used = min($amount, $eligibility['cashback_balance']);
@@ -1405,7 +1416,7 @@ function processWithdrawal($user_id, $amount, $bank_id) {
             'withdrawal_date' => date('Y-m-d')
         ];
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/withdrawals';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/withdrawals';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1456,9 +1467,9 @@ function processWithdrawal($user_id, $amount, $bank_id) {
 function getWithdrawalHistory($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/withdrawals?user_id=eq.' . $user_id . '&order=created_at.desc&limit=10';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/withdrawals?user_id=eq.' . $user_id . '&order=created_at.desc&limit=10';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1521,9 +1532,9 @@ function trackUserIP($user_id, $ip_address, $device_fingerprint, $type = 'regist
     global $supabase;
     try {
         // Use service role key
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/ip_associations';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/ip_associations';
         
         $data = [
             'ip_address' => $ip_address,
@@ -1558,10 +1569,10 @@ function trackUserIP($user_id, $ip_address, $device_fingerprint, $type = 'regist
 function getMultipleAccountsCount($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
         // First get user's IPs
-        $user_ips_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/ip_associations?user_id=eq.' . $user_id . '&select=ip_address';
+        $user_ips_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/ip_associations?user_id=eq.' . $user_id . '&select=ip_address';
         
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -1590,7 +1601,7 @@ function getMultipleAccountsCount($user_id) {
             $unique_users = [];
             
             foreach ($user_ips as $ip) {
-                $ip_users_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/ip_associations?ip_address=eq.' . $ip . '&select=user_id';
+                $ip_users_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/ip_associations?ip_address=eq.' . $ip . '&select=user_id';
                 
                 $ch = curl_init();
                 curl_setopt_array($ch, [
@@ -1633,9 +1644,9 @@ function getMultipleAccountsCount($user_id) {
 function debugVerificationSession($user_id) {
     global $supabase;
     try {
-        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+        $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
         
-        $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/telegram_verification_sessions?user_id=eq.' . $user_id . '&order=created_at.desc&limit=5';
+        $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/telegram_verification_sessions?user_id=eq.' . $user_id . '&order=created_at.desc&limit=5';
         
         $ch = curl_init();
         curl_setopt_array($ch, [

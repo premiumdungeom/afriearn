@@ -2,6 +2,18 @@
 // login.php
 require_once 'config.php';
 
+// At the top of login.php, after require_once 'config.php';
+error_log("=== LOGIN ATTEMPT ===");
+error_log("Domain: " . $_SERVER['HTTP_HOST']);
+error_log("Session ID: " . session_id());
+error_log("Session Status: " . session_status());
+error_log("POST Data: " . print_r($_POST, true));
+
+// Also add after successful login:
+error_log("Login successful for: " . $email);
+error_log("User ID: " . $user_id);
+error_log("Session User: " . print_r($_SESSION['user'], true));
+
 $error = '';
 
 // If user is already logged in, redirect to dashboard
@@ -85,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Ninja Hope</title>
+    <title>Login - Afri Earn</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
@@ -349,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="logo-header">
             <i class="fas fa-user-ninja logo-icon"></i>
             <h2>Welcome Back</h2>
-            <p style="color: var(--text-muted); text-align: center;">Sign in to your Ninja Hope account</p>
+            <p style="color: var(--text-muted); text-align: center;">Sign in to your Afri Earn account</p>
         </div>
         
         <?php if ($error): ?>

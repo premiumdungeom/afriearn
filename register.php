@@ -2,6 +2,10 @@
 // register.php
 require_once 'config.php';
 
+if (isLoggedIn()) {
+    redirect('dashboard.php');
+}
+
 $error = '';
 $success = '';
 
@@ -55,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'balance' => 0,
                                 'wallet_balance' => 0,
                                 'cashback_balance' => 0,
-                                'tasks_completed' => 0,
                                 'referrals_count' => 0,
                                 'role' => 'user',
                                 'status' => 'active'
@@ -75,9 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     'last_login_ip' => $ip_address,
                                     'device_fingerprint' => $device_fingerprint
                                 ];
-        
-                                // Use service role to update user
-                                $update_url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/users?id=eq.' . $user_id;
+                                
+                                $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';       
+                                                              // Use service role to update user
+                                $update_url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/users?id=eq.' . $user_id;
                                 $ch = curl_init();
                                 curl_setopt_array($ch, [
                                     CURLOPT_URL => $update_url,
@@ -118,9 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Function to create user using Admin API (bypasses email confirmation)
 function createUserWithAdminAPI($email, $password, $name, $username) {
-    $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+    $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
     
-    $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/auth/v1/admin/users';
+    $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/auth/v1/admin/users';
     
     $user_data = [
         'email' => $email,
@@ -168,9 +172,9 @@ function createUserWithAdminAPI($email, $password, $name, $username) {
 
 // Function to create user profile using service role key (bypasses RLS)
 function createUserProfile($userData) {
-    $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbmpob3lkYXN6emFtdXF2Z2lxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDUxMzY0NCwiZXhwIjoyMDgwMDg5NjQ0fQ.O7oyX9-9SocPDlnf_Da-O79oH95u1-kr80BcAoIa4O8';
+    $service_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qZ2llbWp5d2loemtkendncG1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU3ODMyMiwiZXhwIjoyMDgwMTU0MzIyfQ.2RpK-Yuk9bgcXN8U24gEETnZJfUC6h_UZcXpP1uasWU';
     
-    $url = 'https://hqnjhoydaszzamuqvgiq.supabase.co/rest/v1/users';
+    $url = 'https://njgiemjywihzkdzwgpmo.supabase.co/rest/v1/users';
     
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -217,7 +221,7 @@ function createUserProfile($userData) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Ninja Hope</title>
+    <title>Register - Afri Earn</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
         /* Your existing CSS styles remain the same */
@@ -339,21 +343,6 @@ function createUserProfile($userData) {
             color: var(--accent-green);
             margin-bottom: 0.5rem;
             display: block;
-        }
-        
-        .warning {
-            background: var(--warning-bg);
-            color: var(--warning-text);
-            padding: 1.2rem;
-            border-radius: 12px;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            border-left: 4px solid var(--warning-text);
-            line-height: 1.5;
-        }
-        
-        .warning strong {
-            color: var(--warning-text);
         }
         
         .form-group {
@@ -524,14 +513,7 @@ function createUserProfile($userData) {
             <i class="fas fa-user-ninja logo-icon"></i>
             <h2>Create Account</h2>
         </div>
-        
-        <div class="warning">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Warning:</strong> Fake accounts or multiple accounts on the same device will be 
-            <strong>banned</strong> and 
-            <strong>will not be paid</strong>.
-        </div>
-        
+
         <?php if ($error): ?>
             <div class="error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
@@ -543,7 +525,7 @@ function createUserProfile($userData) {
         <!-- Show message if referral code was auto-filled -->
         <?php if (!empty($referral_code_from_url)): ?>
             <div class="referral-auto-filled">
-                <i class="fas fa-gift"></i> Referral code auto-filled! Your friend will earn ₦500 when you join.
+                <i class="fas fa-gift"></i> Referral code
             </div>
         <?php endif; ?>
         
@@ -587,7 +569,7 @@ function createUserProfile($userData) {
                     <?php if (!empty($referral_code_from_url)): ?>
                         <i class="fas fa-link"></i> Referral code from your friend's link
                     <?php else: ?>
-                        If you have a referral code, enter it here. Your friend will earn ₦500 when you join!
+                       
                     <?php endif; ?>
                 </div>
             </div>

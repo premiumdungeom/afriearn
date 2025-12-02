@@ -460,7 +460,7 @@ try {
     <!-- Header -->
     <div class="header">
         <a href="logout.php" class="close-btn">X</a>
-        <h1>Ninja Hope</h1>
+        <h1>Afri Earn</h1>
         <div class="user-info">
             <?php echo htmlspecialchars($user_data['username'] ?? 'User'); ?>
         </div>
@@ -477,7 +477,7 @@ try {
     <?php if (isset($_SESSION['welcome_bonus'])): ?>
     <div class="bonus-alert">
         <i class="fas fa-gift"></i> 
-        <strong>Welcome Bonus!</strong> You've received ₦500 for joining!
+        <strong>Welcome Bonus!</strong> You've received ₦300 for joining!
     </div>
     <?php unset($_SESSION['welcome_bonus']); endif; ?>
 
@@ -571,17 +571,10 @@ try {
             <p>You <strong>MUST join all 3 links</strong> below to activate your ₦5,000 bonus.</p>
             <div class="badge">₦5,000 Instant Credit</div>
             <div class="btn-group">
-                <a href="https://t.me/affileteoin" target="_blank" class="btn telegram">
-                    <i class="fas fa-bullhorn"></i> Join Channel 1
-                </a>
-                <a href="https://t.me/earnifywithmelody" target="_blank" class="btn telegram">
-                    <i class="fas fa-bullhorn"></i> Join Channel 2
-                </a>
-                <a href="https://t.me/+SdZr5UYZgCMzMzU0" target="_blank" class="btn telegram">
-                    <i class="fab fa-users"></i> Join Support Group
+                <a href="https://t.me/AFRI_EARN" target="_blank" class="btn telegram">
+                    <i class="fas fa-bullhorn"></i> Join Official Chan
                 </a>
             </div>
-            <p class="note">Withdrawal opens on <strong>25th</strong> — keep completing tasks!</p>
         </div>
     </div>
 
@@ -593,10 +586,7 @@ try {
             <h3>Need Help?</h3>
             <p>Contact us to place ads, buy groups/channels or get support.</p>
             <div class="btn-group">
-                <a href="https://wa.me/2348012345678?text=Hi%20Admin" target="_blank" class="btn whatsapp">
-                    <i class="fab fa-whatsapp"></i> WhatsApp Support
-                </a>
-                <a href="https://t.me/Mimol009" target="_blank" class="btn telegram">
+                <a href="https://t.me/Afriearn5" target="_blank" class="btn telegram">
                     <i class="fab fa-telegram-plane"></i> Telegram Admin
                 </a>
             </div>

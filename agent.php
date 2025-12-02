@@ -37,7 +37,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Referral - Ninja Hope</title>
+    <title>Referral - Afri Earn</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -464,7 +464,7 @@ try {
             <div class="earn-amount">₦<?php echo number_format($total_earnings, 2); ?></div>
             <div class="earn-sub">From <?php echo $referral_data['referrals_count'] ?? 0; ?> successful invites</div>
             <p style="margin-top:1rem;font-size:0.95rem;color:var(--text-muted);">
-                Earn <strong style="color:var(--accent-green);">₦500</strong> instantly when someone registers with your link!
+                Earn <strong style="color:var(--accent-green);">₦300</strong> instantly when someone registers with your link!
             </p>
         </div>
 
@@ -475,7 +475,7 @@ try {
                 <div class="stat-label">Total Referrals</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">₦500</div>
+                <div class="stat-value">₦300</div>
                 <div class="stat-label">Per Referral</div>
             </div>
         </div>
@@ -492,7 +492,7 @@ try {
 
         <!-- REFERRAL LINK -->
         <div style="margin:1rem;">
-            <div class="ref-box" id="refLink">https://ninjahope.nexo.com.ng/register.php?ref=<?php echo htmlspecialchars($referral_data['referral_code'] ?? ''); ?></div>
+            <div class="ref-box" id="refLink">www.afriearn.work/register.php?ref=<?php echo htmlspecialchars($referral_data['referral_code'] ?? ''); ?></div>
             <div class="copy-group">
                 <button class="copy-btn" onclick="copyText('refLink', 'Referral link')">
                     <i class="fas fa-link"></i> Copy Link
@@ -573,48 +573,86 @@ try {
             <i class="fas fa-user-friends"></i>
             Agent
         </a>
-        <a href="profile.php" class="nav-item">
+        <a href="chat.php" class="nav-item">
             <i class="fas fa-user"></i>
-            Profile
+            Support 
         </a>
     </div>
 
     <script>
         function copyText(id, label) {
             const text = document.getElementById(id).innerText;
+    
             navigator.clipboard.writeText(text).then(() => {
                 triggerConfetti();
+        
+                // Find the button that was clicked - using event from onclick
                 const btn = event.target.closest('button');
                 const original = btn.innerHTML;
+        
                 btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                setTimeout(() => {
+                btn.style.background = 'linear-gradient(135deg, var(--accent-green), var(--dark-green))';
+        
+        setTimeout(() => {
                     btn.innerHTML = original;
+                    btn.style.background = 'linear-gradient(135deg, var(--dark-green), var(--dark-purple))';
                 }, 2000);
+        
+                // Show success message
+                showToast(label + ' copied to clipboard!');
+            }).catch(err => {
+                console.error('Copy failed: ', err);
+                showToast('Failed to copy. Try again.');
             });
+        }
+
+        function showToast(message) {
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--dark-green);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 10px;
+                font-weight: 600;
+                z-index: 10000;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                animation: slideDown 0.3s ease;
+            `;
+    
+            toast.innerHTML = `
+                <i class="fas fa-check-circle" style="margin-right: 8px;"></i>
+                ${message}
+            `;
+    
+            document.body.appendChild(toast);
+    
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(-50%) translateY(-20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
         function shareLink() {
             const refLink = document.getElementById('refLink').innerText;
+    
             if (navigator.share) {
                 navigator.share({
-                    title: 'Join Ninja Hope!',
-                    text: 'Earn ₦500 when you register with my link!',
+                    title: 'Join Afri Earn!',
+                    text: 'Earn ₦300 when you register with my link!',
                     url: refLink
+                }).then(() => {
+                    showToast('Link shared successfully!');
+                }).catch(err => {
+                    console.error('Share failed:', err);
                 });
             } else {
-                copyText('refLink', 'link');
-            }
-        }
-
-        function triggerConfetti() {
-            for (let i = 0; i < 50; i++) {
-                const confetti = document.createElement('div');
-                confetti.className = 'confetti';
-                confetti.style.left = Math.random() * 100 + 'vw';
-                confetti.style.background = ['#1e8449', '#0a5c36', '#4a235a', '#d4ac0d'][Math.floor(Math.random() * 4)];
-                confetti.style.animationDelay = Math.random() * 3 + 's';
-                document.body.appendChild(confetti);
-                setTimeout(() => confetti.remove(), 3000);
+                copyText('refLink', 'Referral link');
             }
         }
     </script>
