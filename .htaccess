@@ -1,7 +1,7 @@
-# .htaccess - Apache configuration
+# .htaccess - Safe configuration
 RewriteEngine On
 
-# Redirect to login.php if accessing root
+# Redirect root to login.php
 RewriteRule ^$ login.php [L]
 
 # Allow direct access to PHP files
@@ -9,10 +9,12 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^([^\.]+)$ $1.php [NC,L]
 
-# Security headers
-Header set X-Content-Type-Options "nosniff"
-Header set X-Frame-Options "SAMEORIGIN"
-Header set X-XSS-Protection "1; mode=block"
-
 # Disable directory listing
 Options -Indexes
+
+# Security - remove without mod_headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
