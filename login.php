@@ -2,18 +2,6 @@
 // login.php
 require_once 'config.php';
 
-// At the top of login.php, after require_once 'config.php';
-error_log("=== LOGIN ATTEMPT ===");
-error_log("Domain: " . $_SERVER['HTTP_HOST']);
-error_log("Session ID: " . session_id());
-error_log("Session Status: " . session_status());
-error_log("POST Data: " . print_r($_POST, true));
-
-// Also add after successful login:
-error_log("Login successful for: " . $email);
-error_log("User ID: " . $user_id);
-error_log("Session User: " . print_r($_SESSION['user'], true));
-
 $error = '';
 
 // If user is already logged in, redirect to dashboard

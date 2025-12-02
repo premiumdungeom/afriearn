@@ -1,27 +1,16 @@
 <?php
 // config.php
 
-// In config.php, replace the session_set_cookie_params() section:
-
+// Start session FIRST before any output
 if (session_status() === PHP_SESSION_NONE) {
-    // Get current domain
-    $domain = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    
-    // Remove 'www.' prefix for cookie to work on both www and non-www
-    if (strpos($domain, 'www.') === 0) {
-        $domain = substr($domain, 4);
-    }
-    
-    // Set session cookie parameters
+    // Set session cookie parameters BEFORE starting session
     session_set_cookie_params([
-        'lifetime' => 6 * 60 * 60, // 6 hours
+        'lifetime' => 6 * 60 * 60, // 6 hours default
         'path' => '/',
-        'domain' => $domain, // Use cleaned domain
-        'secure' => isset($_SERVER['HTTPS']) || 
-                   (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && 
-                    $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'),
-        'httponly' => true,
-        'samesite' => 'Lax'
+        'domain' => $_SERVER['HTTP_HOST'] ?? 'localhost',
+        'secure' => isset($_SERVER['HTTPS']), // Only send over HTTPS if available
+        'httponly' => true, // Prevent JavaScript access
+        'samesite' => 'Lax' // CSRF protection
     ]);
     
     session_start();
